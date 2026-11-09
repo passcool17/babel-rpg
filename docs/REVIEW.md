@@ -24,3 +24,6 @@ Revue unique, faite avant la publication avec la grille du skill *requesting-cod
 
 ## Verdict
 Prêt à publier avec les corrections ci-dessus (32 tests Node verts, parcours navigateur headless vert).
+
+## Après la première publication
+- **Important (corrigé)** — `tools/stamp.mjs` remplaçait la première occurrence de `js/main.js?v=`, qui est dans l'import map : la balise `<script>` gardait `?v=__MAIN__`, donc le script principal n'était jamais versionné (risque de vieux cache). Corrigé en ciblant `src="./js/main.js?v=…"`, avec un test (`tests/stamp.test.js`) qui vérifie tous les hashes de `index.html`.

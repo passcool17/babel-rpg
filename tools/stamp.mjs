@@ -10,6 +10,6 @@ const map = JSON.stringify({ imports }, null, 1);
 let html = readFileSync('index.html', 'utf8');
 html = html.replace(/<!-- IMPORTMAP:START -->[\s\S]*<!-- IMPORTMAP:END -->/, `<!-- IMPORTMAP:START -->\n  <script type="importmap">${map}</script>\n  <!-- IMPORTMAP:END -->`);
 html = html.replace(/style\.css\?v=[\w_]+/, `style.css?v=${h('style.css')}`);
-html = html.replace(/js\/main\.js\?v=[\w_]+/, `js/main.js?v=${h('js/main.js')}`);
+html = html.replace(/src="\.\/js\/main\.js\?v=[\w]+"/, `src="./js/main.js?v=${h("js/main.js")}"`);
 writeFileSync('index.html', html);
 console.log(`import map : ${Object.keys(imports).length} entrées`);
