@@ -261,7 +261,7 @@ async function battle(enemyIds, { boss = false, zone = 'champs', intro = null } 
     ui.renderBattleParty(b, actor.uid);
     renderer.highlight(actor.uid);
     let cmd;
-    if (actor.side === 'party') cmd = await chooseCommand(b, actor);
+    if (actor.side === 'party') { ui.battleLog(`Au tour de ${actor.name}.`); cmd = await chooseCommand(b, actor); }
     else { ui.el.battleMenu.innerHTML = ''; await wait(420); cmd = enemyChoose(b, actor); }
     ui.el.battleMenu.innerHTML = '';
     const events = perform(b, actor, cmd, state.inv);

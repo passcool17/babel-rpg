@@ -17,7 +17,8 @@ export class Input {
     const k = e.key;
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(k)) e.preventDefault();
     if (e.repeat && ['Enter', ' ', 'e', 'E', 'Escape'].includes(k)) return;
-    if (this.ui.handleKey(k)) { this.held.clear(); return; }
+    if (this.ui.handleKey(k)) { e.preventDefault(); this.held.clear(); return; }
+    if (k === 'Enter') e.preventDefault(); // évite le clic natif d'un bouton qui aurait le focus
     this.held.add(k.toLowerCase());
     if (['e', 'E', 'Enter', ' '].includes(k)) this.onAction();
     if (k === 'Escape') this.onMenu();

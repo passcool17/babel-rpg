@@ -20,6 +20,13 @@ function canvasTex(c, { repeat = false, nearest = true } = {}) {
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
   return t;
 }
+function disposeTree(obj) {
+  obj.traverse((o) => {
+    if (o.userData && o.userData.shared) return;
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) [].concat(o.material).forEach((m) => { if (m.map && !m.map.userData.shared) m.map.dispose(); m.dispose(); });
+  });
+}
 function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 
 function groundCanvas() {
@@ -114,7 +121,7 @@ export class GameRenderer {
     this.battleCamera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
     this.active = 'world';
     this.sheets = {};
-    this.shadowTex = canvasTex(shadowTexture(), { nearest: false });
+    this.shadowTex = canvasTex(shadowTexture(), { nearest: false }); this.shadowTex.userData.shared = true;
     this.decorMeshes = [];
     this.level = level;
     this.buildWorld();
@@ -479,14 +486,15 @@ export class GameRenderer {
     this.clock += dt;
     this.syncWorld(state, trail);
     this.setFrame(this.player, dir, moving, dt);
-    for (const [id, f] of Object.entries(this.followers)) {
+    for (const f of Object.values(this.followers)) {
       if (!f.parent) continue;
-      const prev = f.userData.prev || f.position.clone();
-      const d = f.position.clone().sub(prev);
-      let fdir = f.userData.dir;
-      if (d.lengthSq() > 1e-5) fdir = Math.abs(d.x) > Math.abs(d.z) ? (d.x > 0 ? 'right' : 'left') : (d.z > 0 ? 'down' : 'up');
+      const u = f.userData;
+      if (!u.prev) u.prev = f.position.clone();
+      const dx = f.position.x - u.prev.x, dz = f.position.z - u.prev.z;
+      let fdir = u.dir;
+      if (dx * dx + dz * dz > 1e-5) fdir = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'right' : 'left') : (dz > 0 ? 'down' : 'up');
       this.setFrame(f, fdir, moving, dt);
-      f.userData.prev = f.position.clone();
+      u.prev.copy(f.position);
     }
     for (const a of Object.values(this.npcs)) this.setFrame(a, 'down', false, dt);
     for (const g of Object.values(this.patrols)) g.children.forEach((a) => this.setFrame(a, 'right', false, dt));
@@ -497,13 +505,14 @@ export class GameRenderer {
     const aspect = this.aspect || 1;
     const portrait = aspect < 1;
     const back = portrait ? 11 : 9, up = portrait ? 7.4 : 6.2;
-    const target = titleMode
-      ? new THREE.Vector3(p.x + Math.sin(this.clock * 0.1) * 3, up + 2, p.z + back + 2)
-      : new THREE.Vector3(p.x, up, p.z + back);
+    const target = this._camTarget || (this._camTarget = new THREE.Vector3());
+    if (titleMode) target.set(p.x + Math.sin(this.clock * 0.1) * 3, up + 2, p.z + back + 2);
+    else target.set(p.x, up, p.z + back);
     if (!this.camInit) { this.camera.position.copy(target); this.camInit = true; }
     this.camera.position.lerp(target, Math.min(1, dt * 5));
     this.camLook = this.camLook || new THREE.Vector3(p.x, 1.4, p.z - 5);
-    this.camLook.lerp(new THREE.Vector3(p.x, 1.4, p.z - 5), Math.min(1, dt * 5));
+    this._lookTarget = (this._lookTarget || new THREE.Vector3()).set(p.x, 1.4, p.z - 5);
+    this.camLook.lerp(this._lookTarget, Math.min(1, dt * 5));
     this.camera.lookAt(this.camLook);
     this.sun.position.set(p.x + 10, 22, p.z + 12);
     this.sun.target.position.set(p.x, 0, p.z - 2);
@@ -534,8 +543,9 @@ export class GameRenderer {
 
   startBattle(b, zone) {
     const s = this.battleScene;
+    if (this.stageGroundMat.map) this.stageGroundMat.map.dispose();
     this.stageGroundMat.map = this.stageGroundTexture(zone); this.stageGroundMat.needsUpdate = true;
-    this.stageDecor.clear();
+    for (const c of [...this.stageDecor.children]) { this.stageDecor.remove(c); if (!c.userData.shared) disposeTree(c); }
     const rock = new THREE.MeshLambertMaterial({ color: 0xa96a40, flatShading: true });
     const palmT = new THREE.MeshLambertMaterial({ color: 0x8b6a45 }), palmL = new THREE.MeshLambertMaterial({ color: 0x4f8f3a, side: THREE.DoubleSide });
     const leaf = palmLeafGeometry();
@@ -548,7 +558,7 @@ export class GameRenderer {
     if (zone === 'canyon' || zone === 'boss') {
       for (let i = 0; i < 16; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(3, 3 + hash(i, 1) * 4, 3), rock); m.position.set(-22 + i * 3, 1.5, -9 - hash(i, 2) * 3); this.stageDecor.add(m); }
       if (zone === 'boss') {
-        const zig = this.ziggurat.clone(); zig.scale.setScalar(0.5); zig.position.set(4, 0, -38); this.stageDecor.add(zig);
+        const zig = this.ziggurat.clone(); zig.userData.shared = true; zig.scale.setScalar(0.5); zig.position.set(4, 0, -38); this.stageDecor.add(zig);
         const tent = new THREE.Mesh(new THREE.ConeGeometry(1.4, 2.2, 4), new THREE.MeshLambertMaterial({ color: 0xa63d32, flatShading: true })); tent.position.set(-6, 1.1, -4); this.stageDecor.add(tent);
       }
     } else {
@@ -557,7 +567,7 @@ export class GameRenderer {
         const w = new THREE.Mesh(new THREE.PlaneGeometry(80, 12), new THREE.MeshPhongMaterial({ color: 0x3cc4bc, shininess: 80 })); w.rotation.x = -Math.PI / 2; w.position.set(0, 0.02, -16); this.stageDecor.add(w);
       }
     }
-    for (const a of Object.values(this.battleActors)) s.remove(a);
+    for (const a of Object.values(this.battleActors)) { s.remove(a); disposeTree(a); }
     this.battleActors = {};
     this.battlePortrait = (this.aspect || 1) < 0.8;
     b.party.forEach((p, i) => this.addBattleActor(b, p, i));

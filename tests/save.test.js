@@ -45,3 +45,9 @@ test('stockage indisponible ou qui lance des erreurs', () => {
   assert.doesNotThrow(() => clear(bad));
   assert.equal(save(newGame(), null), false);
 });
+
+test('étape hors bornes ou personnage inconnu : sauvegarde refusée', () => {
+  assert.equal(validate({ ...newGame(), step: 99 }), null);
+  assert.equal(validate({ ...newGame(), party: ['asher', 'inconnu'] }), null);
+  assert.equal(validate({ ...newGame(), coins: -5 }).coins, 0);
+});

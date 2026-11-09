@@ -1,5 +1,6 @@
 // Sauvegarde automatique versionnée dans localStorage, tolérante aux erreurs.
 import { newGame, SAVE_VERSION } from './game.js';
+import { QUEST_STEPS, CHARACTERS } from './data.js';
 
 export const SAVE_KEY = 'babel.save';
 
@@ -29,7 +30,9 @@ export function validate(raw) {
     if (!m || !Number.isFinite(m.hp) || !Number.isFinite(m.level) || !Number.isFinite(m.xp)) return null;
   }
   if (!s.pos || !Number.isFinite(s.pos.x) || !Number.isFinite(s.pos.z)) s.pos = base.pos;
-  if (!Number.isInteger(s.step) || s.step < 0) return null;
+  if (!Number.isInteger(s.step) || s.step < 0 || s.step >= QUEST_STEPS.length) return null;
+  if (s.party.some((id) => !CHARACTERS[id])) return null;
+  if (!Number.isFinite(s.coins) || s.coins < 0) s.coins = 0;
   return s;
 }
 
